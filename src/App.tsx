@@ -153,7 +153,7 @@ function App() {
             currentStep={currentStep}
             totalSteps={totalSteps}
             description={currentStepData?.description || ''}
-            variables={currentStepData?.variables || []}
+            operationType={currentStepData?.operationType}
           />
           
           <ControlPanel
