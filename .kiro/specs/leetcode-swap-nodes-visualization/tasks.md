@@ -1,0 +1,149 @@
+# Implementation Plan
+
+- [x] 1. 项目初始化和基础配置
+  - [x] 1.1 使用 Vite 创建 React + TypeScript 项目
+    - 初始化项目结构
+    - 配置 TypeScript 严格模式
+    - 安装依赖：react, d3, prismjs, fast-check, vitest
+    - _Requirements: 5.1_
+  - [x] 1.2 配置 ESLint 和 Prettier
+    - 添加 ESLint 配置文件
+    - 添加 Prettier 配置文件
+    - 配置 lint 脚本
+    - _Requirements: 5.2_
+  - [x] 1.3 配置 GitHub Actions 自动部署
+    - 创建 `.github/workflows/deploy.yml`
+    - 配置构建和部署到 GitHub Pages
+    - _Requirements: 5.1, 5.2, 5.3, 5.4_
+
+- [x] 2. 核心数据模型和算法引擎
+  - [x] 2.1 实现 LinkedList 数据模型
+    - 创建 `src/models/LinkedList.ts`
+    - 实现 ListNode 接口和类
+    - 实现 createFromArray、toArray、clone 函数
+    - _Requirements: 1.1_
+  - [x] 2.2 编写 LinkedList 属性测试
+    - **Property 2: 算法结果正确性**
+    - **Validates: Requirements 1.1**
+  - [x] 2.3 实现 Algorithm Engine
+    - 创建 `src/engine/AlgorithmEngine.ts`
+    - 实现 swapPairs 算法逻辑
+    - 实现 generateSteps 生成所有动画步骤
+    - _Requirements: 1.1, 1.3, 1.4_
+  - [x] 2.4 编写步骤生成属性测试
+    - **Property 5: 代码行号有效性**
+    - **Property 6: 变量状态与链表一致性**
+    - **Validates: Requirements 3.2, 3.3**
+  - [x] 2.5 实现变量格式化工具函数
+    - 创建 `src/utils/formatVariable.ts`
+    - 实现 null 和节点的格式化输出
+    - _Requirements: 3.5_
+  - [x] 2.6 编写变量格式化属性测试
+    - **Property 7: 变量格式化输出**
+    - **Validates: Requirements 3.5**
+
+- [x] 3. Checkpoint - 确保核心逻辑测试通过
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 4. 状态管理和步骤控制
+  - [x] 4.1 实现 useAlgorithmState Hook
+    - 创建 `src/hooks/useAlgorithmState.ts`
+    - 管理 currentStep、isPlaying、testCase 状态
+    - 实现 nextStep、prevStep、reset、togglePlay 方法
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+  - [x] 4.2 编写步骤导航属性测试
+    - **Property 3: 步骤导航一致性**
+    - **Property 4: 步骤边界检查**
+    - **Validates: Requirements 2.1, 2.2, 2.5, 2.6**
+  - [x] 4.3 实现键盘快捷键 Hook
+    - 创建 `src/hooks/useKeyboardShortcuts.ts`
+    - 绑定左方向键、右方向键、空格键
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+  - [x] 4.4 编写测试用例重置属性测试
+    - **Property 8: 测试用例重置一致性**
+    - **Validates: Requirements 6.2**
+
+- [x] 5. UI 组件实现
+  - [x] 5.1 实现 Header 组件
+    - 创建 `src/components/Header.tsx`
+    - 显示力扣题目标题（可点击跳转）
+    - 显示 GitHub 徽标（可点击跳转）
+    - _Requirements: 4.1, 4.2, 4.3, 4.4_
+  - [x] 5.2 实现 ControlPanel 组件
+    - 创建 `src/components/ControlPanel.tsx`
+    - 实现上一步、下一步、播放/暂停、重置按钮
+    - 显示快捷键提示文案
+    - 根据步骤状态禁用按钮
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
+  - [x] 5.3 实现 CodePanel 组件
+    - 创建 `src/components/CodePanel.tsx`
+    - 使用 Prism.js 实现 Java 代码语法高亮
+    - 实现当前执行行高亮效果
+    - 在代码行右侧显示变量值
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+  - [x] 5.4 实现 FloatingBall 组件
+    - 创建 `src/components/FloatingBall.tsx`
+    - 下载微信群二维码图片到 `public/assets/`
+    - 实现悬浮球图标（带「交流群」字样）
+    - 实现鼠标悬停显示二维码
+    - 保持图片原有比例
+    - _Requirements: 4.5, 4.6, 4.7_
+
+- [x] 6. D3.js 可视化实现
+  - [x] 6.1 实现 Visualization 组件基础结构
+    - 创建 `src/components/Visualization.tsx`
+    - 设置 SVG 画布和 D3 选择器
+    - _Requirements: 1.1_
+  - [x] 6.2 实现链表节点渲染
+    - 渲染节点为圆形元素
+    - 显示节点 val 值
+    - 实现节点高亮效果（不同颜色表示 current、prev、temp）
+    - _Requirements: 1.1, 1.4_
+  - [x] 6.3 编写链表渲染属性测试
+    - **Property 1: 链表渲染一致性**
+    - **Property 9: 节点高亮正确性**
+    - **Validates: Requirements 1.1, 1.2, 1.4**
+  - [x] 6.4 实现链表边（指针）渲染
+    - 渲染节点之间的箭头连线
+    - 实现指针变化动画效果
+    - _Requirements: 1.2, 1.3_
+  - [x] 6.5 实现节点交换动画
+    - 实现节点位置平滑移动动画
+    - 实现指针重新指向动画
+    - _Requirements: 1.5_
+
+- [x] 7. 页面整合和样式
+  - [x] 7.1 实现 App 主组件
+    - 创建 `src/App.tsx`
+    - 整合所有子组件
+    - 实现响应式布局
+    - _Requirements: 4.1_
+  - [x] 7.2 添加全局样式
+    - 创建 `src/styles/global.css`
+    - 实现单屏幕布局
+    - 添加代码高亮样式
+    - 添加按钮和控件样式
+    - _Requirements: 4.1_
+  - [x] 7.3 实现测试用例选择器
+    - 添加预设测试用例下拉选择
+    - 支持 [1,2,3,4]、[]、[1]、[1,2,3] 等用例
+    - _Requirements: 6.1, 6.2, 6.3, 6.4_
+
+- [x] 8. Checkpoint - 确保所有功能正常
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 9. 最终验证和部署
+  - [x] 9.1 本地构建验证
+    - 运行 `npm run build` 确保无编译错误
+    - 运行 `npm run lint` 确保无 linter 错误
+    - 运行 `npm run test` 确保所有测试通过
+    - _Requirements: 5.2_
+  - [x] 9.2 提交代码触发自动部署
+    - 提交所有代码到主分支
+    - 验证 GitHub Actions 构建成功
+    - 验证 GitHub Pages 部署成功
+    - _Requirements: 5.1, 5.3_
+
+- [x] 10. Final Checkpoint - 确保所有测试通过
+  - Ensure all tests pass, ask the user if questions arise.
+

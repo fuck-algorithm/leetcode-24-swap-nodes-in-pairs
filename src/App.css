@@ -1,0 +1,160 @@
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f5f5f5;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.left-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.right-panel {
+  width: 585px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 输入区域 */
+.input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.input-row label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  white-space: nowrap;
+}
+
+.input-field {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background-color: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #ffa116;
+  box-shadow: 0 0 0 2px rgba(255, 161, 22, 0.2);
+}
+
+.input-field.error {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+.apply-btn {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  background-color: #ffa116;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.apply-btn:hover {
+  background-color: #e8920f;
+}
+
+.random-btn {
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  background-color: #6366f1;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.random-btn:hover {
+  background-color: #4f46e5;
+}
+
+.input-error {
+  font-size: 12px;
+  color: #ef4444;
+  margin-left: 76px;
+}
+
+.preset-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preset-label {
+  font-size: 13px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.preset-btn {
+  padding: 5px 10px;
+  font-size: 13px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  color: #666;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preset-btn:hover {
+  background-color: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+.preset-btn.active {
+  color: #fff;
+  background-color: #ffa116;
+  border-color: #ffa116;
+}
+
+/* 响应式布局 */
+@media (max-width: 900px) {
+  .main-content {
+    flex-direction: column;
+  }
+  
+  .right-panel {
+    width: 100%;
+  }
+}
