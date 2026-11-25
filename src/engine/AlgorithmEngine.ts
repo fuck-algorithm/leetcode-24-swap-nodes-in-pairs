@@ -1,35 +1,27 @@
 import { ListNode, createFromArray, clone, toArray } from '../models/LinkedList'
 
-/**
- * 变量状态
- */
 export interface VariableState {
   name: string
   value: string
   line: number
 }
 
-/**
- * 可视化节点
- */
 export interface VisualNode {
   id: string
   value: number
   x: number
   y: number
   highlight: 'current' | 'prev' | 'temp' | 'fakeHead' | 'swapping' | null
-  // 用于动画的目标位置
   targetX?: number
   targetY?: number
-  // 节点在逻辑顺序中的位置索引
   logicalIndex: number
-  // 是否是被断开的节点（临时不在链表中）
+  isSentinel?: boolean
+  isNull?: boolean
+  displayLabel?: string
+  pointerLabels?: string[]
   isDisconnected?: boolean
 }
 
-/**
- * 可视化边
- */
 export interface VisualEdge {
   id: string
   sourceId: string
@@ -37,24 +29,18 @@ export interface VisualEdge {
   isAnimating: boolean
   isNew: boolean
   isRemoving: boolean
-  // 边的类型：normal-正常边，changing-正在变化的边
   edgeType?: 'normal' | 'changing' | 'new' | 'removing'
+  label?: string
 }
 
-/**
- * 指针变化信息
- */
 export interface PointerChange {
-  from: string  // 源节点ID
-  to: string | null  // 目标节点ID，null表示指向null
-  label: string  // 指针名称，如 "prev.next", "current.next"
-  isNew: boolean  // 是否是新建立的指针
-  isRemoving: boolean  // 是否是正在移除的指针
+  from: string
+  to: string | null
+  label: string
+  isNew: boolean
+  isRemoving: boolean
 }
 
-/**
- * 动画步骤
- */
 export type StepOperation = 'init' | 'read' | 'compare' | 'swap' | 'move' | 'return' | 'done'
 
 export interface AnimationStep {
@@ -73,15 +59,11 @@ export interface AnimationStep {
     nodeId: string
     pointerType: 'current' | 'prev' | 'temp' | 'fakeHead'
   }[]
-  // 指针变化信息，用于动画展示
   pointerChanges?: PointerChange[]
-  // 所有节点的引用（包括被断开的节点）
   allNodes?: Map<string, ListNode>
-  // 当前步骤的操作类型
   operationType?: 'init' | 'check' | 'pointer-change' | 'swap-complete' | 'move-pointer' | 'return'
 }
 
-// Java 代码行号映射（对应 CodePanel 中的 JAVA_CODE）
 export const CODE_LINES = {
   METHOD_START: 1,
   CREATE_FAKE_HEAD: 2,
@@ -100,22 +82,15 @@ export const CODE_LINES = {
 
 export const TOTAL_CODE_LINES = 13
 
-/**
- * 格式化节点值用于显示
- */
 export function formatNodeValue(node: ListNode | null): string {
   if (node === null) return 'null'
   return `Node(${node.val})`
 }
 
-// 可视化常量
 const START_X = 100
 const SPACING = 120
 const Y_NORMAL = 150
 
-/**
- * 收集所有节点到Map中
- */
 function collectAllNodes(head: ListNode | null): Map<string, ListNode> {
   const nodeMap = new Map<string, ListNode>()
   const visited = new Set<string>()
@@ -130,27 +105,30 @@ function collectAllNodes(head: ListNode | null): Map<string, ListNode> {
   return nodeMap
 }
 
-/**
- * 根据节点的逻辑顺序生成可视化节点
- * @param nodeOrder 节点ID的逻辑顺序数组
- * @param allNodes 所有节点的Map
- * @param highlights 高亮信息
- * @param swappingNodes 正在交换的节点ID集合
- */
 function generateVisualNodesFromOrder(
   nodeOrder: string[],
   allNodes: Map<string, ListNode>,
   highlights: Map<string, 'current' | 'prev' | 'temp' | 'fakeHead' | 'swapping'>,
-  swappingNodes: Set<string> = new Set()
+  pointerTargets: Map<string, string[]> = new Map(),
+  swappingNodes: Set<string> = new Set(),
+  includeFakeHead = false,
+  includeNullTail = false,
 ): VisualNode[] {
   const nodes: VisualNode[] = []
+
+  if (includeFakeHead) {
+    nodes.push({
+      id: 'fakeHead', value: 0, x: START_X - SPACING, y: Y_NORMAL,
+      highlight: highlights.has('fakeHead') ? 'fakeHead' : null,
+      logicalIndex: -1, isSentinel: true, displayLabel: '虚拟头',
+      pointerLabels: pointerTargets.get('fakeHead') || [],
+    })
+  }
 
   nodeOrder.forEach((nodeId, index) => {
     const node = allNodes.get(nodeId)
     if (!node) return
-
     const isSwapping = swappingNodes.has(nodeId)
-
     nodes.push({
       id: node.id,
       value: node.val,
@@ -159,20 +137,25 @@ function generateVisualNodesFromOrder(
       highlight: highlights.get(node.id) || (isSwapping ? 'swapping' : null),
       logicalIndex: index,
       isDisconnected: false,
+      pointerLabels: pointerTargets.get(node.id) || [],
     })
   })
+
+  if (includeNullTail) {
+    nodes.push({
+      id: 'null-tail', value: 0, x: START_X + nodeOrder.length * SPACING, y: Y_NORMAL,
+      highlight: null, logicalIndex: nodeOrder.length, isNull: true, displayLabel: 'null',
+    })
+  }
 
   return nodes
 }
 
-/**
- * 根据节点顺序生成边
- */
 function generateVisualEdgesFromOrder(
   nodeOrder: string[],
   changingEdges: Set<string> = new Set(),
   newEdges: Set<string> = new Set(),
-  removingEdges: Set<string> = new Set()
+  removingEdges: Set<string> = new Set(),
 ): VisualEdge[] {
   const edges: VisualEdge[] = []
 
@@ -180,7 +163,6 @@ function generateVisualEdgesFromOrder(
     const sourceId = nodeOrder[i]
     const targetId = nodeOrder[i + 1]
     const edgeId = `edge-${sourceId}-${targetId}`
-
     edges.push({
       id: edgeId,
       sourceId,
@@ -189,15 +171,13 @@ function generateVisualEdgesFromOrder(
       isNew: newEdges.has(edgeId),
       isRemoving: removingEdges.has(edgeId),
       edgeType: newEdges.has(edgeId) ? 'new' : removingEdges.has(edgeId) ? 'removing' : changingEdges.has(edgeId) ? 'changing' : 'normal',
+      label: 'next',
     })
   }
 
   return edges
 }
 
-/**
- * 计算节点的可视化位置（带循环检测）- 保留用于兼容
- */
 function calculateNodePositions(head: ListNode | null): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>()
   const visited = new Set<string>()
@@ -214,12 +194,9 @@ function calculateNodePositions(head: ListNode | null): Map<string, { x: number;
   return positions
 }
 
-/**
- * 生成可视化节点列表（带循环检测）- 保留用于兼容
- */
 function generateVisualNodes(
   head: ListNode | null,
-  highlights: Map<string, 'current' | 'prev' | 'temp' | 'fakeHead' | 'swapping'>
+  highlights: Map<string, 'current' | 'prev' | 'temp' | 'fakeHead' | 'swapping'>,
 ): VisualNode[] {
   const positions = calculateNodePositions(head)
   const nodes: VisualNode[] = []
@@ -245,9 +222,6 @@ function generateVisualNodes(
   return nodes
 }
 
-/**
- * 生成可视化边列表（带循环检测）- 保留用于兼容
- */
 function generateVisualEdges(head: ListNode | null): VisualEdge[] {
   const edges: VisualEdge[] = []
   const visited = new Set<string>()
@@ -262,6 +236,7 @@ function generateVisualEdges(head: ListNode | null): VisualEdge[] {
       isAnimating: false,
       isNew: false,
       isRemoving: false,
+      label: `${current.val} → ${current.next.val}`,
     })
     current = current.next
   }
@@ -269,19 +244,11 @@ function generateVisualEdges(head: ListNode | null): VisualEdge[] {
   return edges
 }
 
-/**
- * 算法引擎：生成所有动画步骤
- * 改进版：保持所有节点可见，展示指针变化动画
- */
 export function generateSteps(input: number[]): AnimationStep[] {
   const steps: AnimationStep[] = []
   let stepIndex = 0
-  let previousNarration = ''
-
-  // 创建初始链表
   const originalHead = createFromArray(input)
 
-  // 如果链表为空或只有一个节点，直接返回
   if (originalHead === null) {
     steps.push({
       stepIndex: 0,
@@ -321,11 +288,8 @@ export function generateSteps(input: number[]): AnimationStep[] {
     return steps
   }
 
-  // 创建工作副本并收集所有节点
   const workingHead = clone(originalHead)!
   const allNodes = collectAllNodes(workingHead)
-  
-  // 维护节点的显示顺序（用于可视化）
   const displayOrder: string[] = []
   let tempCurrent = workingHead
   while (tempCurrent) {
@@ -333,12 +297,10 @@ export function generateSteps(input: number[]): AnimationStep[] {
     tempCurrent = tempCurrent.next!
   }
 
-  // Step 1: 创建 fakeHead
   const fakeHead = new ListNode(0, workingHead, 'fakeHead')
   let current: ListNode | null = workingHead
   let prev: ListNode | null = fakeHead
 
-  // 改进的 addStep 函数：使用 displayOrder 来保持所有节点可见
   const addStep = (
     description: string,
     line: number,
@@ -347,11 +309,10 @@ export function generateSteps(input: number[]): AnimationStep[] {
     tempNode: ListNode | null = null,
     operationType: AnimationStep['operationType'] = 'init',
     swappingNodeIds: string[] = [],
-    pointerChanges: PointerChange[] = []
+    pointerChanges: PointerChange[] = [],
   ) => {
     const highlights = new Map<string, 'current' | 'prev' | 'temp' | 'fakeHead' | 'swapping'>()
     const pointerHighlights: AnimationStep['pointerHighlights'] = []
-
     if (currentNode) {
       highlights.set(currentNode.id, 'current')
       pointerHighlights.push({ nodeId: currentNode.id, pointerType: 'current' })
@@ -364,15 +325,10 @@ export function generateSteps(input: number[]): AnimationStep[] {
       highlights.set(tempNode.id, 'temp')
       pointerHighlights.push({ nodeId: tempNode.id, pointerType: 'temp' })
     }
-    
-    // 标记正在交换的节点
     swappingNodeIds.forEach(id => {
-      if (!highlights.has(id)) {
-        highlights.set(id, 'swapping')
-      }
+      if (!highlights.has(id)) highlights.set(id, 'swapping')
     })
 
-    // 变量显示在当前高亮行
     const variables: VariableState[] = [
       { name: 'fakeHead', value: formatNodeValue(fakeHead), line },
       { name: 'current', value: formatNodeValue(currentNode), line },
@@ -382,30 +338,90 @@ export function generateSteps(input: number[]): AnimationStep[] {
       variables.push({ name: 'temp', value: formatNodeValue(tempNode), line })
     }
 
-    // 使用 displayOrder 生成可视化节点，确保所有节点都显示
-    const swappingSet = new Set(swappingNodeIds)
-    const visualNodes = generateVisualNodesFromOrder(displayOrder, allNodes, highlights, swappingSet)
-    const visualEdges = generateVisualEdgesFromOrder(displayOrder)
-
     const operation: StepOperation = operationType === 'init' ? 'init'
       : operationType === 'check' ? 'compare'
         : operationType === 'swap-complete' ? 'swap'
           : operationType === 'move-pointer' ? 'move'
             : 'read'
-    const narration = description === previousNarration
-      ? `${description}，因此继续追踪当前指针状态。`
-      : description
-    previousNarration = narration
-    const focusNodeIds = (operation === 'compare' || operation === 'swap')
+    const focusNodeIds = operationType === 'check'
       ? [currentNode?.id, currentNode?.next?.id].filter((id): id is string => Boolean(id))
-      : [currentNode?.id || tempNode?.id || prevNode?.id].filter((id): id is string => Boolean(id))
+      : operationType === 'pointer-change' && pointerChanges.length > 0
+        ? [pointerChanges[pointerChanges.length - 1].to].filter((id): id is string => Boolean(id))
+        : operationType === 'swap-complete' && pointerChanges.length > 0
+          ? [pointerChanges[pointerChanges.length - 1].from, pointerChanges[pointerChanges.length - 1].to].filter((id): id is string => Boolean(id))
+          : [currentNode?.id || tempNode?.id || prevNode?.id].filter((id): id is string => Boolean(id))
+
+    const pointerTargets = new Map<string, string[]>()
+    for (const [name, target] of [['prev', prevNode], ['current', currentNode], ['temp', tempNode]] as const) {
+      if (target) pointerTargets.set(target.id, [...(pointerTargets.get(target.id) || []), name])
+    }
+
+    const visualNodes = generateVisualNodesFromOrder(
+      displayOrder,
+      allNodes,
+      highlights,
+      pointerTargets,
+      new Set(swappingNodeIds),
+      true,
+      pointerChanges.some(change => change.to === null),
+    )
+    const visualEdges = generateVisualEdgesFromOrder(displayOrder)
+    if (pointerChanges.some(change => change.to === null)) {
+      const tailNodeId = displayOrder[displayOrder.length - 1]
+      if (tailNodeId) visualEdges.push({
+        id: `edge-${tailNodeId}-null-tail`, sourceId: tailNodeId, targetId: 'null-tail',
+        isAnimating: true, isNew: true, isRemoving: false, edgeType: 'new', label: '接回 null',
+      })
+    }
+
+    const prefixNodeId = prevNode?.id || 'fakeHead'
+    const prefixTargetId = prevNode?.id === 'fakeHead' ? fakeHead.next?.id : prevNode?.next?.id
+    if (prefixTargetId) {
+      const prefixEdgeIndex = visualEdges.findIndex(edge => edge.sourceId === prefixNodeId)
+      if (prefixEdgeIndex >= 0) visualEdges.splice(prefixEdgeIndex, 1)
+      visualEdges.unshift({
+        id: `edge-${prefixNodeId}-${prefixTargetId}`,
+        sourceId: prefixNodeId,
+        targetId: prefixTargetId,
+        isAnimating: false,
+        isNew: false,
+        isRemoving: false,
+        edgeType: 'normal',
+        label: `前驱接到 ${allNodes.get(prefixTargetId)?.val}`,
+      })
+    }
+
+    for (const change of pointerChanges) {
+      if (!change.to) continue
+      const edgeId = `edge-${change.from}-${change.to}`
+      if (!visualEdges.some(edge => edge.id === edgeId)) {
+        visualEdges.push({
+          id: edgeId,
+          sourceId: change.from,
+          targetId: change.to,
+          isAnimating: true,
+          isNew: change.isNew,
+          isRemoving: false,
+          edgeType: 'new',
+          label: `${change.label} → ${allNodes.get(change.to)?.val ?? 'null'}`,
+        })
+      }
+    }
+    if (operationType === 'pointer-change' && pointerChanges.length > 0) {
+      const change = pointerChanges[pointerChanges.length - 1]
+      const edgeIndex = visualEdges.findIndex(edge => edge.sourceId === change.from && edge.targetId !== change.to)
+      if (edgeIndex >= 0) visualEdges[edgeIndex] = { ...visualEdges[edgeIndex], isRemoving: true, edgeType: 'removing' }
+      const newEdge = visualEdges.find(edge => edge.sourceId === change.from && edge.targetId === change.to)
+      if (newEdge) newEdge.label = `${change.label} 改指向`
+    }
+
     steps.push({
       stepIndex: stepIndex++,
       description,
       operation,
-      narration,
+      narration: description,
       anchorIds: [`code-line-${line}`],
-      focusNodeIds,
+      focusNodeIds: focusNodeIds.filter(id => id !== 'fakeHead'),
       linkedListHead: clone(fakeHead.next),
       visualNodes,
       visualEdges,
@@ -418,150 +434,124 @@ export function generateSteps(input: number[]): AnimationStep[] {
     })
   }
 
-  // 初始化步骤
   addStep(
-    '创建虚拟头节点 fakeHead，初始化 current 指向 head，prev 指向 fakeHead',
+    '先放入虚拟头节点，给链表前面加一个固定的“接头点”。',
     CODE_LINES.CREATE_FAKE_HEAD,
     current,
     prev,
     null,
-    'init'
+    'init',
   )
-
   addStep(
-    '初始化 current = head, prev = fakeHead',
+    'current 站在第一个待交换节点，prev 站在它前面的接头点。',
     CODE_LINES.INIT_CURRENT_PREV,
     current,
     prev,
     null,
-    'init'
+    'init',
   )
 
-  // 主循环
   while (current !== null && current.next !== null) {
     addStep(
-      `检查循环条件：current(${formatNodeValue(current)}) != null && current.next(${formatNodeValue(current.next)}) != null`,
+      `先看能不能凑成一对：从 ${current.val} 开始，后面还有 ${current.next.val}，所以可以交换。`,
       CODE_LINES.WHILE_CONDITION,
       current,
       prev,
       null,
-      'check'
+      'check',
     )
 
-    // 保存 nextNode 引用，因为后面会修改指针
-    const nextNode: ListNode = current.next!
+    const nextNode: ListNode = current.next
     const temp: ListNode | null = nextNode.next
-    
-    // 记录交换前的位置
     const currentIndex = displayOrder.indexOf(current.id)
     const nextIndex = displayOrder.indexOf(nextNode.id)
 
-    // prev.next = current.next - 这一步不改变显示顺序，只是指针变化
-    prev.next = nextNode
+    prev!.next = nextNode
     addStep(
-      `prev.next = current.next：将 prev 的 next 指向 ${formatNodeValue(nextNode)}`,
+      `先改前面的接头：让 ${formatNodeValue(prev)} 指向第二个节点 ${nextNode.val}；第一个节点还没丢。`,
       CODE_LINES.PREV_NEXT_ASSIGN,
       current,
       prev,
       null,
       'pointer-change',
       [current.id, nextNode.id],
-      [{ from: prev.id, to: nextNode.id, label: 'prev.next', isNew: true, isRemoving: false }]
+      [{ from: prev!.id, to: nextNode.id, label: 'prev.next', isNew: true, isRemoving: false }],
     )
 
-    // temp = current.next.next (已经保存)
     addStep(
-      `temp = current.next.next：保存 ${formatNodeValue(temp)} 到临时变量 temp`,
+      temp === null
+        ? '先把后面的链表记在 temp：第二个节点后面是 null，交换后要接回 null。'
+        : `先把后面的链表记在 temp：temp 暂存节点 ${temp.val}，等会儿接回去。`,
       CODE_LINES.TEMP_ASSIGN,
       current,
       prev,
       temp,
       'pointer-change',
-      [current.id, nextNode.id]
+      [current.id, nextNode.id],
     )
 
-    // current.next.next = current (使用 nextNode) - 这是关键的交换步骤
     nextNode.next = current
-    
-    // 更新显示顺序：交换 current 和 nextNode 的位置
     if (currentIndex !== -1 && nextIndex !== -1) {
       displayOrder[currentIndex] = nextNode.id
       displayOrder[nextIndex] = current.id
     }
-    
     addStep(
-      `current.next.next = current：将 ${formatNodeValue(nextNode)} 的 next 指向 ${formatNodeValue(current)}，节点位置交换`,
+      `把第一对反过来：让第二个节点 ${nextNode.val} 指回第一个节点 ${current.val}。`,
       CODE_LINES.CURRENT_NEXT_NEXT,
       current,
       prev,
       temp,
       'swap-complete',
       [current.id, nextNode.id],
-      [{ from: nextNode.id, to: current.id, label: 'nextNode.next', isNew: true, isRemoving: false }]
+      [{ from: nextNode.id, to: current.id, label: 'nextNode.next', isNew: true, isRemoving: false }],
     )
 
-    // current.next = temp
     current.next = temp
     addStep(
-      `current.next = temp：将 ${formatNodeValue(current)} 的 next 指向 ${formatNodeValue(temp)}`,
+      temp === null
+        ? `把交换好的这对接回结尾：${current.val} 现在指向 null，链表到这里结束。`
+        : `把交换好的这对接回后半段：${current.val} 指向暂存的节点 ${temp.val}，没有跳过后面的节点。`,
       CODE_LINES.CURRENT_NEXT_ASSIGN,
       current,
       prev,
       temp,
       'pointer-change',
       [],
-      [{ from: current.id, to: temp?.id || null, label: 'current.next', isNew: true, isRemoving: false }]
+      [{ from: current.id, to: temp?.id || null, label: 'current.next', isNew: true, isRemoving: false }],
     )
 
-    // prev = current
     prev = current
     addStep(
-      `prev = current：移动 prev 指针到 ${formatNodeValue(current)}`,
+      `这一对已经排好：prev 移到节点 ${current.val}，为下一对找到前面的接头。`,
       CODE_LINES.PREV_ASSIGN,
       current,
       prev,
       temp,
-      'move-pointer'
+      'move-pointer',
     )
 
-    // current = temp
     current = temp
     addStep(
-      `current = temp：移动 current 指针到 ${formatNodeValue(temp)}`,
+      temp === null
+        ? '后面没有节点了：current 到达 null，算法可以结束。'
+        : `current 跳到下一对的开头 ${temp.val}，从这里继续重复同样三次改线。`,
       CODE_LINES.CURRENT_ASSIGN,
       current,
       prev,
       temp,
-      'move-pointer'
+      'move-pointer',
     )
   }
 
-  // 最终检查循环条件
   if (current === null) {
-    addStep(
-      `循环结束：current 为 null`,
-      CODE_LINES.WHILE_CONDITION,
-      current,
-      prev,
-      null,
-      'check'
-    )
+    addStep('current 已到 null，没有完整节点对剩下，交换结束。', CODE_LINES.WHILE_CONDITION, current, prev, null, 'check')
   } else {
-    addStep(
-      `循环结束：current.next 为 null，只剩一个节点`,
-      CODE_LINES.WHILE_CONDITION,
-      current,
-      prev,
-      null,
-      'check'
-    )
+    addStep(`只剩节点 ${current.val}，后面没有第二个节点配对，所以它保持原位。`, CODE_LINES.WHILE_CONDITION, current, prev, null, 'check')
   }
 
-  // 返回结果
   const highlights = new Map<string, 'current' | 'prev' | 'temp' | 'fakeHead' | 'swapping'>()
   const visualNodes = generateVisualNodesFromOrder(displayOrder, allNodes, highlights)
   const visualEdges = generateVisualEdgesFromOrder(displayOrder)
-  
   steps.push({
     stepIndex: stepIndex++,
     description: '返回 fakeHead.next，算法完成',
@@ -573,9 +563,7 @@ export function generateSteps(input: number[]): AnimationStep[] {
     visualNodes,
     visualEdges,
     highlightLine: CODE_LINES.RETURN,
-    variables: [
-      { name: 'fakeHead.next', value: formatNodeValue(fakeHead.next), line: CODE_LINES.RETURN },
-    ],
+    variables: [{ name: 'fakeHead.next', value: formatNodeValue(fakeHead.next), line: CODE_LINES.RETURN }],
     pointerHighlights: [],
     operationType: 'return',
   })
@@ -583,9 +571,6 @@ export function generateSteps(input: number[]): AnimationStep[] {
   return steps
 }
 
-/**
- * 直接执行 swapPairs 算法（用于验证）
- */
 export function swapPairs(head: ListNode | null): ListNode | null {
   if (head === null || head.next === null) return head
 
@@ -606,9 +591,6 @@ export function swapPairs(head: ListNode | null): ListNode | null {
   return fakeHead.next
 }
 
-/**
- * 获取算法执行后的结果数组
- */
 export function getExpectedResult(input: number[]): number[] {
   const head = createFromArray(input)
   const result = swapPairs(head)

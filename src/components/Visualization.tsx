@@ -66,11 +66,12 @@ export function Visualization({
     svg.attr('width', width).attr('height', height)
 
     // 逻辑坐标先映射到容器比例，再按节点整体范围居中，避免窄屏裁切。
-    const scale = Math.min(width / 900, height / 300, 1.2)
+    const scale = Math.min(width / 1080, height / 360, 1.2)
     const minX = nodes.length > 0 ? Math.min(...nodes.map(n => n.x)) : 0
     const maxX = nodes.length > 0 ? Math.max(...nodes.map(n => n.x)) : minX
     const contentWidth = (maxX - minX) * scale + NODE_RADIUS * 2
-    const offsetX = (width - contentWidth) / 2 - minX * scale + NODE_RADIUS
+    const sentinelPadding = nodes.some(node => node.isSentinel) ? NODE_RADIUS * 2 + 16 : 0
+    const offsetX = (width - contentWidth) / 2 - minX * scale + NODE_RADIUS + sentinelPadding
     const offsetY = height / 2 - 150 * scale
 
     // 创建或更新主容器
@@ -134,6 +135,7 @@ export function Visualization({
     nodes.forEach(n => {
       nodePositions.set(n.id, { x: n.x, y: n.y })
     })
+    const nodeById = new Map(nodes.map(node => [node.id, node]))
 
     // 绘制边（箭头）
     const edgeSelection = edgesLayer.selectAll<SVGLineElement, VisualEdge>('.edge')
@@ -152,13 +154,41 @@ export function Visualization({
       .attr('class', 'edge')
       .style('opacity', 0)
 
+    const edgeLabels = edgesLayer.selectAll<SVGTextElement, VisualEdge>('text.edge-label')
+      .data(edges.filter(edge => edge.label && nodePositions.has(edge.sourceId) && nodePositions.has(edge.targetId)), edge => edge.id)
+    edgeLabels.exit().remove()
+    const edgeLabelEnter = edgeLabels.enter().append('text')
+      .attr('class', 'edge-label').attr('text-anchor', 'middle').attr('dy', -9)
+    edgeLabels.merge(edgeLabelEnter)
+      .attr('class', edge => `edge-label${edge.isNew ? ' is-new' : ''}${edge.isRemoving ? ' is-removing' : ''}`)
+      .text(edge => edge.label || '')
+      .attr('x', edge => {
+        const from = nodePositions.get(edge.sourceId)
+        const to = nodePositions.get(edge.targetId)
+        return from && to ? (from.x + to.x) / 2 : 0
+      })
+      .attr('y', edge => {
+        const from = nodePositions.get(edge.sourceId)
+        const to = nodePositions.get(edge.targetId)
+        return from && to ? (from.y + to.y) / 2 : 0
+      })
+      .classed('is-new', edge => edge.isNew)
+      .classed('is-removing', edge => edge.isRemoving)
+
     // 更新所有边
+    edgeSelection.exit()
+      .filter((_, index, groups) => {
+        const edge = d3.select<SVGLineElement, VisualEdge>(groups[index]).datum()
+        return !nodePositions.has(edge.sourceId) || !nodePositions.has(edge.targetId)
+      })
+      .remove()
     edgeSelection.merge(edgeEnter)
       .transition()
       .duration(animationDuration)
       .attr('x1', d => {
         const pos = nodePositions.get(d.sourceId)
-        return pos ? pos.x + NODE_RADIUS : 0
+        const radius = nodeById.get(d.sourceId)?.isNull ? 4 : NODE_RADIUS
+        return pos ? pos.x + radius : 0
       })
       .attr('y1', d => {
         const pos = nodePositions.get(d.sourceId)
@@ -166,7 +196,8 @@ export function Visualization({
       })
       .attr('x2', d => {
         const pos = nodePositions.get(d.targetId)
-        return pos ? pos.x - NODE_RADIUS : 0
+        const radius = nodeById.get(d.targetId)?.isNull ? 4 : NODE_RADIUS
+        return pos ? pos.x - radius : 0
       })
       .attr('y2', d => {
         const pos = nodePositions.get(d.targetId)
@@ -201,14 +232,14 @@ export function Visualization({
     // 添加新节点组
     const nodeEnter = nodeSelection.enter()
       .append('g')
-      .attr('class', 'node-group')
+      .attr('class', d => `node-group${d.isSentinel ? ' is-sentinel' : ''}${d.isNull ? ' is-null' : ''}`)
       .attr('transform', d => `translate(${d.x}, ${d.y})`)
       .style('opacity', 0)
 
     // 添加节点圆形
     nodeEnter.append('circle')
       .attr('class', 'node-circle')
-      .attr('r', NODE_RADIUS)
+      .attr('r', d => d.isNull ? 4 : NODE_RADIUS)
 
     // 添加节点值文本
     nodeEnter.append('text')
@@ -220,10 +251,17 @@ export function Visualization({
 
     // 添加指针标签
     nodeEnter.append('text')
+      .attr('class', 'node-role')
+      .attr('text-anchor', 'middle')
+      .attr('y', NODE_RADIUS + 20)
+      .attr('font-size', '12px')
+      .attr('font-weight', '600')
+
+    nodeEnter.append('text')
       .attr('class', 'pointer-label')
       .attr('text-anchor', 'middle')
-      .attr('y', -NODE_RADIUS - 15)
-      .attr('font-size', '14px')
+      .attr('y', -NODE_RADIUS - 12)
+      .attr('font-size', '10px')
       .attr('font-weight', '600')
 
     // 合并并更新所有节点
@@ -244,19 +282,23 @@ export function Visualization({
         if (d.highlight) {
           return HIGHLIGHT_BG_COLORS[d.highlight] || '#fff'
         }
-        return '#fff'
+        return d.isSentinel ? '#eef2f0' : d.isNull ? '#fff' : '#fff'
       })
       .attr('stroke', d => {
         if (d.highlight) {
           return HIGHLIGHT_COLORS[d.highlight] || '#333'
         }
-        return '#333'
+        return d.isSentinel || d.isNull ? '#879a92' : '#333'
       })
       .attr('stroke-width', d => d.highlight ? 3 : 2)
+      .attr('stroke-dasharray', d => d.isSentinel || d.isNull ? '4 3' : 'none')
 
     // 更新节点值文本
+    allNodes.select('.node-circle')
+      .attr('r', d => d.isNull ? 4 : NODE_RADIUS)
+      .attr('stroke-dasharray', d => d.isSentinel ? '4 3' : 'none')
     allNodes.select('.node-value')
-      .text(d => d.value)
+      .text(d => d.isSentinel || d.isNull ? '' : d.value)
       .transition()
       .duration(animationDuration)
       .attr('fill', d => {
@@ -266,20 +308,21 @@ export function Visualization({
         return '#333'
       })
 
-    // 更新指针标签
+    // 节点内显示数据，节点下方说明角色；指针始终用短标签。
+    allNodes.select('.node-role')
+      .text(d => d.displayLabel || (d.highlight === 'current' ? '当前节点' : d.highlight === 'prev' ? '前驱' : d.highlight === 'temp' ? '暂存后续' : ''))
+      .attr('fill', d => d.highlight ? HIGHLIGHT_COLORS[d.highlight] : '#667a73')
     allNodes.select('.pointer-label')
-      .text(d => d.highlight || '')
-      .transition()
-      .duration(animationDuration)
-      .attr('fill', d => d.highlight ? HIGHLIGHT_COLORS[d.highlight!] : '#666')
+      .text(d => (d.pointerLabels || []).join(' / '))
+      .attr('fill', d => d.highlight ? HIGHLIGHT_COLORS[d.highlight] : '#667a73')
 
   }, [nodes, edges, currentStep, reducedMotion])
 
-  // 指针颜色映射（用于图例）
+  // 固定图例说明三种需要追踪的指针。
   const pointerLegend = [
-    { name: 'current', color: HIGHLIGHT_COLORS.current, label: '当前节点 (current)' },
-    { name: 'prev', color: HIGHLIGHT_COLORS.prev, label: '前驱节点 (prev)' },
-    { name: 'temp', color: HIGHLIGHT_COLORS.temp, label: '临时指针 (temp)' },
+    { name: 'current', color: HIGHLIGHT_COLORS.current, label: '当前节点 current' },
+    { name: 'prev', color: HIGHLIGHT_COLORS.prev, label: '前驱节点 prev' },
+    { name: 'temp', color: HIGHLIGHT_COLORS.temp, label: '暂存后续 temp' },
     { name: 'swapping', color: HIGHLIGHT_COLORS.swapping, label: '交换中' },
   ]
 
@@ -336,9 +379,9 @@ export function Visualization({
       {/* 链表数组表示 */}
       {nodes.length > 0 && (
         <div className="viz-array-view">
-          <span className="array-label">链表顺序:</span>
+          <span className="array-label">从头开始:</span>
           <span className="array-content">
-            {nodes.map((n, i) => (
+            {nodes.filter(node => !node.isSentinel && !node.isNull).map((n, i, list) => (
               <span key={n.id} className="array-node">
                 <span 
                   className={`array-value ${n.highlight ? 'highlighted' : ''}`}
@@ -349,7 +392,7 @@ export function Visualization({
                 >
                   {n.value}
                 </span>
-                {i < nodes.length - 1 && <span className="array-arrow">→</span>}
+                {i < list.length - 1 && <span className="array-arrow">→</span>}
               </span>
             ))}
           </span>

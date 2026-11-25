@@ -5,6 +5,7 @@ import {
   swapPairs,
   getExpectedResult,
   TOTAL_CODE_LINES,
+  CODE_LINES,
   formatNodeValue,
 } from './AlgorithmEngine'
 import { createFromArray, toArray } from '../models/LinkedList'
@@ -38,6 +39,16 @@ describe('AlgorithmEngine', () => {
       const result = swapPairs(head)
       expect(toArray(result)).toEqual([2, 1, 3])
     })
+
+    it('preserves node objects while swapping links', () => {
+      const head = createFromArray([1, 2, 3, 4])
+      const nodes = [head!, head!.next!, head!.next!.next!, head!.next!.next!.next!]
+      const result = swapPairs(head)
+      expect(result).toBe(nodes[1])
+      expect(result?.next).toBe(nodes[0])
+      expect(result?.next?.next).toBe(nodes[3])
+      expect(result?.next?.next?.next).toBe(nodes[2])
+    })
   })
 
   describe('generateSteps', () => {
@@ -55,103 +66,73 @@ describe('AlgorithmEngine', () => {
       const steps = generateSteps([1, 2, 3, 4])
       expect(steps.length).toBeGreaterThan(0)
     })
+
+    it('gives every step a clear narration, focus and code anchor', () => {
+      for (const step of generateSteps([1, 2, 3, 4])) {
+        expect(step.operation).toBeTruthy()
+        expect(step.narration.trim().length).toBeGreaterThan(10)
+        expect(step.anchorIds).toContain(`code-line-${step.highlightLine}`)
+        expect(step.focusNodeIds.length).toBeLessThanOrEqual(
+          step.operation === 'compare' || step.operation === 'swap' ? 2 : 1,
+        )
+      }
+    })
+
+    it('shows the sentinel head and null endpoint when reconnecting the list', () => {
+      const steps = generateSteps([1, 2, 3, 4])
+      expect(steps[0].visualNodes.some(node => node.id === 'fakeHead')).toBe(true)
+      expect(steps[0].visualEdges.some(edge => edge.sourceId === 'fakeHead')).toBe(true)
+      expect(steps.some(step => step.visualNodes.some(node => node.isNull))).toBe(true)
+    })
   })
 
-  /**
-   * **Feature: leetcode-swap-nodes-visualization, Property 5: 代码行号有效性**
-   * 
-   * *For any* 动画步骤，其 highlightLine 值应该在 [1, totalCodeLines] 范围内
-   * **Validates: Requirements 3.2**
-   */
   describe('Property 5: Code line validity', () => {
-    it('Property: all steps should have valid highlight line numbers', () => {
-      fc.assert(
-        fc.property(
-          fc.array(fc.integer({ min: 0, max: 100 }), { minLength: 0, maxLength: 10 }),
-          (arr) => {
-            const steps = generateSteps(arr)
-            
-            for (const step of steps) {
-              expect(step.highlightLine).toBeGreaterThanOrEqual(1)
-              expect(step.highlightLine).toBeLessThanOrEqual(TOTAL_CODE_LINES)
-            }
+    it('all steps should have valid highlight line numbers', () => {
+      fc.assert(fc.property(
+        fc.array(fc.integer({ min: 0, max: 100 }), { minLength: 0, maxLength: 10 }),
+        arr => {
+          for (const step of generateSteps(arr)) {
+            expect(step.highlightLine).toBeGreaterThanOrEqual(1)
+            expect(step.highlightLine).toBeLessThanOrEqual(TOTAL_CODE_LINES)
           }
-        ),
-        { numRuns: 30 }
-      )
+        }), { numRuns: 30 })
     })
   })
 
-  /**
-   * **Feature: leetcode-swap-nodes-visualization, Property 6: 变量状态与链表一致性**
-   * 
-   * *For any* 动画步骤，变量 current、prev、temp 的值应该与该步骤链表中对应节点的实际引用一致
-   * **Validates: Requirements 3.3**
-   */
   describe('Property 6: Variable state consistency', () => {
-    it('Property: all steps should have consistent variable states', () => {
-      fc.assert(
-        fc.property(
-          fc.array(fc.integer({ min: 0, max: 100 }), { minLength: 2, maxLength: 10 }),
-          (arr) => {
-            const steps = generateSteps(arr)
-            
-            for (const step of steps) {
-              // 每个步骤都应该有变量状态
-              expect(step.variables).toBeDefined()
-              
-              // 变量值应该是有效的格式
-              for (const variable of step.variables) {
-                expect(variable.name).toBeTruthy()
-                expect(variable.value).toMatch(/^(null|Node\(\d+\))$/)
-                expect(variable.line).toBeGreaterThanOrEqual(1)
-                expect(variable.line).toBeLessThanOrEqual(TOTAL_CODE_LINES)
-              }
+    it('all steps should have consistent variable states', () => {
+      fc.assert(fc.property(
+        fc.array(fc.integer({ min: 0, max: 100 }), { minLength: 2, maxLength: 10 }),
+        arr => {
+          for (const step of generateSteps(arr)) {
+            expect(step.variables).toBeDefined()
+            for (const variable of step.variables) {
+              expect(variable.name).toBeTruthy()
+              expect(variable.value).toMatch(/^(null|Node\(\d+\))$/)
+              expect(variable.line).toBeGreaterThanOrEqual(1)
+              expect(variable.line).toBeLessThanOrEqual(TOTAL_CODE_LINES)
             }
           }
-        ),
-        { numRuns: 30 }
-      )
+        }), { numRuns: 30 })
     })
   })
 
-  /**
-   * **Feature: leetcode-swap-nodes-visualization, Property 2: 算法结果正确性**
-   * 
-   * *For any* 输入链表，执行完所有步骤后的链表状态应该与直接调用 swapPairs 算法的结果一致
-   * **Validates: Requirements 1.1**
-   */
   describe('Property 2: Algorithm result correctness', () => {
-    it('Property: final step should match swapPairs result', () => {
-      fc.assert(
-        fc.property(
-          fc.array(fc.integer({ min: 0, max: 100 }), { minLength: 0, maxLength: 10 }),
-          (arr) => {
-            const steps = generateSteps(arr)
-            const expectedResult = getExpectedResult(arr)
-            
-            // 最后一步的链表状态应该与预期结果一致
-            const lastStep = steps[steps.length - 1]
-            const actualResult = lastStep.linkedListHead
-              ? toArray(lastStep.linkedListHead)
-              : []
-            
-            expect(actualResult).toEqual(expectedResult)
-          }
-        ),
-        { numRuns: 30 }
-      )
+    it('final step should match swapPairs result', () => {
+      fc.assert(fc.property(
+        fc.array(fc.integer({ min: 0, max: 100 }), { minLength: 0, maxLength: 10 }),
+        arr => {
+          const steps = generateSteps(arr)
+          const lastStep = steps[steps.length - 1]
+          expect(lastStep.linkedListHead ? toArray(lastStep.linkedListHead) : []).toEqual(getExpectedResult(arr))
+        }), { numRuns: 30 })
     })
   })
 
   describe('formatNodeValue', () => {
-    it('should format null as "null"', () => {
-      expect(formatNodeValue(null)).toBe('null')
-    })
-
-    it('should format node with value', () => {
-      const node = createFromArray([42])
-      expect(formatNodeValue(node)).toBe('Node(42)')
-    })
+    it('formats null as "null"', () => expect(formatNodeValue(null)).toBe('null'))
+    it('formats a node value', () => expect(formatNodeValue(createFromArray([42]))).toBe('Node(42)'))
   })
+
+  it('keeps the Java return line mapping stable', () => expect(CODE_LINES.RETURN).toBe(12))
 })

@@ -17,7 +17,6 @@
   border-bottom: 1px solid #e3ebe8;
   color: #183b33;
 }
-
 .viz-step-info { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
 .step-badge, .operation-badge { font-size: 10px; line-height: 16px; font-weight: 700; white-space: nowrap; }
 .step-badge { color: #527068; }
@@ -40,8 +39,16 @@
 .empty-state { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #62766f; font-size: 13px; }
 .node-group { cursor: default; }
 .node-circle { transition: fill 0.24s ease, stroke 0.24s ease, stroke-width 0.24s ease; }
-.node-value, .pointer-label { pointer-events: none; user-select: none; }
+.node-value, .pointer-label, .node-role { pointer-events: none; user-select: none; }
+.node-role { text-anchor: middle; font-family: sans-serif; }
 .edge { transition: stroke 0.24s ease, stroke-width 0.24s ease, opacity 0.24s ease; }
+.edge-label { fill: #40564f; stroke: #fff; stroke-width: 4px; paint-order: stroke; font: 600 11px sans-serif; pointer-events: none; }
+.edge-label.is-new { fill: #8b6410; }
+.edge-label.is-removing { fill: #a33e36; text-decoration: line-through; }
+.is-null .node-circle { fill: #fff; stroke: #81958d; stroke-dasharray: 2 2; }
+.node-group.is-null .node-role { font-size: 10px; }
+.node-group.is-sentinel .node-role { font-size: 11px; }
+.is-sentinel .node-role { font-size: 11px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
 }

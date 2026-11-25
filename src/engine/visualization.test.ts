@@ -20,11 +20,11 @@ describe('Property 1: Linked list rendering consistency', () => {
           const firstStep = steps[0]
           
           // 节点数量应该等于数组长度
-          expect(firstStep.visualNodes.length).toBe(arr.length)
+          expect(firstStep.visualNodes.filter(node => !node.isSentinel && !node.isNull).length).toBe(arr.length)
           
           // 每个节点的值应该与数组对应位置的值一致
           if (arr.length > 0) {
-            const nodeValues = firstStep.visualNodes.map(n => n.value)
+            const nodeValues = firstStep.visualNodes.filter(node => !node.isSentinel && !node.isNull).map(n => n.value)
             expect(nodeValues).toEqual(arr)
           }
         }
@@ -42,7 +42,8 @@ describe('Property 1: Linked list rendering consistency', () => {
           const firstStep = steps[0]
           
           // 边的数量应该等于节点数量减 1
-          expect(firstStep.visualEdges.length).toBe(Math.max(0, arr.length - 1))
+          expect(firstStep.visualEdges.filter(edge => edge.targetId !== 'null-tail' && edge.sourceId !== 'fakeHead').length)
+            .toBe(Math.max(0, arr.length - 1))
         }
       ),
       { numRuns: 30 }
