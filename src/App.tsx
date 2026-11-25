@@ -8,15 +8,6 @@ import { FloatingBall } from './components/FloatingBall'
 import { useAlgorithmState } from './hooks/useAlgorithmState'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 
-// 预设测试用例
-const PRESET_CASES = [
-  { label: '[1,2,3,4]', value: [1, 2, 3, 4] },
-  { label: '[1,2]', value: [1, 2] },
-  { label: '[1,2,3]', value: [1, 2, 3] },
-  { label: '[1]', value: [1] },
-  { label: '[]', value: [] },
-]
-
 // 生成随机有效链表数据
 function generateRandomList(): number[] {
   const length = Math.floor(Math.random() * 6) + 1 // 1-6个节点
@@ -32,7 +23,6 @@ function App() {
     steps,
     currentStep,
     isPlaying,
-    testCase,
     totalSteps,
     nextStep,
     prevStep,
@@ -84,13 +74,6 @@ function App() {
     setTestCase(parsed)
   }
 
-  // 选择预设用例
-  const handlePresetClick = (preset: typeof PRESET_CASES[0]) => {
-    setInputValue(preset.label)
-    setInputError('')
-    setTestCase(preset.value)
-  }
-
   // 随机生成
   const handleRandomGenerate = () => {
     const randomList = generateRandomList()
@@ -98,11 +81,6 @@ function App() {
     setInputValue(label)
     setInputError('')
     setTestCase(randomList)
-  }
-
-  // 检查当前是否选中某个预设
-  const isPresetSelected = (preset: typeof PRESET_CASES[0]) => {
-    return JSON.stringify(preset.value) === JSON.stringify(testCase)
   }
 
   return (
@@ -133,27 +111,17 @@ function App() {
               </button>
             </div>
             {inputError && <div className="input-error">{inputError}</div>}
-            <div className="preset-row">
-              <span className="preset-label">预设样例：</span>
-              {PRESET_CASES.map((preset) => (
-                <button
-                  key={preset.label}
-                  className={`preset-btn ${isPresetSelected(preset) ? 'active' : ''}`}
-                  onClick={() => handlePresetClick(preset)}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
           </div>
           
           <Visualization
             nodes={currentStepData?.visualNodes || []}
             edges={currentStepData?.visualEdges || []}
+            reducedMotion={window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false}
             currentStep={currentStep}
             totalSteps={totalSteps}
             description={currentStepData?.description || ''}
-            operationType={currentStepData?.operationType}
+            narration={currentStepData?.narration || currentStepData?.description || ''}
+            operation={currentStepData?.operation}
           />
           
           <ControlPanel

@@ -55,9 +55,15 @@ export interface PointerChange {
 /**
  * 动画步骤
  */
+export type StepOperation = 'init' | 'read' | 'compare' | 'swap' | 'move' | 'return' | 'done'
+
 export interface AnimationStep {
   stepIndex: number
   description: string
+  operation: StepOperation
+  narration: string
+  anchorIds: string[]
+  focusNodeIds: string[]
   linkedListHead: ListNode | null
   visualNodes: VisualNode[]
   visualEdges: VisualEdge[]
@@ -270,6 +276,7 @@ function generateVisualEdges(head: ListNode | null): VisualEdge[] {
 export function generateSteps(input: number[]): AnimationStep[] {
   const steps: AnimationStep[] = []
   let stepIndex = 0
+  let previousNarration = ''
 
   // 创建初始链表
   const originalHead = createFromArray(input)
@@ -279,6 +286,10 @@ export function generateSteps(input: number[]): AnimationStep[] {
     steps.push({
       stepIndex: 0,
       description: '链表为空，无需交换',
+      operation: 'done',
+      narration: '没有节点可交换，因此直接返回空链表。',
+      anchorIds: [`code-line-${CODE_LINES.RETURN}`],
+      focusNodeIds: [],
       linkedListHead: null,
       visualNodes: [],
       visualEdges: [],
@@ -295,6 +306,10 @@ export function generateSteps(input: number[]): AnimationStep[] {
     steps.push({
       stepIndex: 0,
       description: '链表只有一个节点，无需交换',
+      operation: 'done',
+      narration: '只剩一个节点无法组成节点对，因此保留原顺序并返回。',
+      anchorIds: [`code-line-${CODE_LINES.RETURN}`],
+      focusNodeIds: [originalHead.id],
       linkedListHead: clone(originalHead),
       visualNodes: generateVisualNodes(originalHead, highlights),
       visualEdges: generateVisualEdges(originalHead),
@@ -372,9 +387,25 @@ export function generateSteps(input: number[]): AnimationStep[] {
     const visualNodes = generateVisualNodesFromOrder(displayOrder, allNodes, highlights, swappingSet)
     const visualEdges = generateVisualEdgesFromOrder(displayOrder)
 
+    const operation: StepOperation = operationType === 'init' ? 'init'
+      : operationType === 'check' ? 'compare'
+        : operationType === 'swap-complete' ? 'swap'
+          : operationType === 'move-pointer' ? 'move'
+            : 'read'
+    const narration = description === previousNarration
+      ? `${description}，因此继续追踪当前指针状态。`
+      : description
+    previousNarration = narration
+    const focusNodeIds = (operation === 'compare' || operation === 'swap')
+      ? [currentNode?.id, currentNode?.next?.id].filter((id): id is string => Boolean(id))
+      : [currentNode?.id || tempNode?.id || prevNode?.id].filter((id): id is string => Boolean(id))
     steps.push({
       stepIndex: stepIndex++,
       description,
+      operation,
+      narration,
+      anchorIds: [`code-line-${line}`],
+      focusNodeIds,
       linkedListHead: clone(fakeHead.next),
       visualNodes,
       visualEdges,
@@ -534,6 +565,10 @@ export function generateSteps(input: number[]): AnimationStep[] {
   steps.push({
     stepIndex: stepIndex++,
     description: '返回 fakeHead.next，算法完成',
+    operation: 'done',
+    narration: '所有相邻节点对都已交换，因此从 fakeHead.next 返回新的链表头。',
+    anchorIds: [`code-line-${CODE_LINES.RETURN}`],
+    focusNodeIds: displayOrder.slice(0, 1),
     linkedListHead: clone(fakeHead.next),
     visualNodes,
     visualEdges,

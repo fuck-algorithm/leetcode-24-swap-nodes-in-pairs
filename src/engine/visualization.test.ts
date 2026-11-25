@@ -75,6 +75,13 @@ describe('Property 9: Node highlight correctness', () => {
           const steps = generateSteps(arr)
           
           for (const step of steps) {
+            expect(step.operation).toBeTruthy()
+            expect(step.narration.trim().length).toBeGreaterThan(0)
+            expect(step.anchorIds.length).toBeGreaterThan(0)
+            expect(step.focusNodeIds.length).toBeLessThanOrEqual(step.operation === 'compare' || step.operation === 'swap' ? 2 : 1)
+            for (const nodeId of step.focusNodeIds) {
+              expect(step.visualNodes.some(node => node.id === nodeId)).toBe(true)
+            }
             for (const node of step.visualNodes) {
               expect(validHighlightTypes).toContain(node.highlight)
             }

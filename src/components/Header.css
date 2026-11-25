@@ -1,33 +1,28 @@
 .header {
+  position: relative;
+  flex: 0 0 48px;
+  height: 48px;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  padding: 12px 20px;
-  background-color: #fff;
-  border-bottom: 1px solid #e5e5e5;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 0 12px;
+  background: #fff;
+  border-bottom: 1px solid #dce5e2;
 }
 
 .header-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
-  text-decoration: none;
-  transition: color 0.2s;
+  position: absolute;
+  left: 50%;
+  max-width: calc(100% - 180px);
+  transform: translateX(-50%);
+  overflow: hidden;
+  color: #203d35;
+  font-size: 16px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.header-title:hover {
-  color: #ffa116;
-}
-
-.github-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #333;
-  transition: color 0.2s;
-}
-
-.github-link:hover {
-  color: #0366d6;
-}
+.header-title:hover { color: #347a68; }
+.github-link { display: flex; align-items: center; justify-content: center; color: #344b44; }
+.github-link:hover { color: #18765a; }

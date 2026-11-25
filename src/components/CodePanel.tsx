@@ -27,11 +27,11 @@ interface CodePanelProps {
 
 // 变量颜色映射
 const VARIABLE_COLORS: Record<string, string> = {
-  fakeHead: '#8b5cf6',
-  current: '#ef4444',
-  prev: '#3b82f6',
-  temp: '#10b981',
-  'fakeHead.next': '#f59e0b',
+  fakeHead: '#697b75',
+  current: '#18765a',
+  prev: '#52736a',
+  temp: '#347a68',
+  'fakeHead.next': '#b07a12',
 }
 
 export function CodePanel({ highlightLine, variables, description }: CodePanelProps) {
@@ -67,6 +67,7 @@ export function CodePanel({ highlightLine, variables, description }: CodePanelPr
             return (
               <div
                 key={index}
+                id={`code-line-${lineNumber}`}
                 className={`code-line ${isHighlighted ? 'highlighted' : ''}`}
               >
                 <span className="line-gutter">
@@ -98,7 +99,7 @@ export function CodePanel({ highlightLine, variables, description }: CodePanelPr
               <div key={i} className="variable-row">
                 <span 
                   className="variable-name"
-                  style={{ color: VARIABLE_COLORS[v.name] || '#6366f1' }}
+                  style={{ color: VARIABLE_COLORS[v.name] || '#52635e' }}
                 >
                   {v.name}
                 </span>

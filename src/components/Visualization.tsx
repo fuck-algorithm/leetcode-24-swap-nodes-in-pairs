@@ -7,9 +7,11 @@ interface VisualizationProps {
   nodes: VisualNode[]
   edges: VisualEdge[]
   currentStep?: number
+  reducedMotion: boolean
   totalSteps?: number
   description?: string
-  operationType?: 'init' | 'check' | 'pointer-change' | 'swap-complete' | 'move-pointer' | 'return'
+  narration?: string
+  operation?: 'init' | 'read' | 'compare' | 'swap' | 'move' | 'return' | 'done'
 }
 
 const NODE_RADIUS = 30
@@ -17,35 +19,36 @@ const ARROW_SIZE = 10
 
 // 高亮颜色映射
 const HIGHLIGHT_COLORS: Record<string, string> = {
-  current: '#ef4444',  // 红色
-  prev: '#3b82f6',     // 蓝色
-  temp: '#10b981',     // 绿色
-  fakeHead: '#8b5cf6', // 紫色
-  swapping: '#f59e0b', // 橙色
+  current: '#18765a',
+  prev: '#52736a',
+  temp: '#347a68',
+  fakeHead: '#697b75',
+  swapping: '#b07a12',
 }
 
 // 高亮背景颜色（更浅）
 const HIGHLIGHT_BG_COLORS: Record<string, string> = {
-  current: '#fef2f2',
-  prev: '#eff6ff',
-  temp: '#ecfdf5',
-  fakeHead: '#f5f3ff',
-  swapping: '#fffbeb',
+  current: '#d6eee5',
+  prev: '#e5eeea',
+  temp: '#e0f1eb',
+  fakeHead: '#eef2f0',
+  swapping: '#fff1ce',
 }
 
 export function Visualization({ 
   nodes, 
-  edges, 
-  currentStep = 0, 
+  edges,
+  reducedMotion,
+  currentStep = 0,
   totalSteps = 0, 
   description = '',
-  operationType = 'init'
+  narration = description,
+  operation = 'init'
 }: VisualizationProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // 动画持续时间
-  const ANIMATION_DURATION = 500
+  // 画布以节点 ID 做 keyed join，坐标由逻辑索引与容器尺寸确定。
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current) return
@@ -53,25 +56,29 @@ export function Visualization({
     const svg = d3.select(svgRef.current)
     const container = containerRef.current
     const width = container.clientWidth
-    const height = container.clientHeight - 120 // 减去顶部信息栏和底部的高度
+    const headerHeight = container.querySelector('.viz-header')?.getBoundingClientRect().height || 0
+    const legendHeight = container.querySelector('.viz-legend')?.getBoundingClientRect().height || 0
+    const arrayHeight = container.querySelector('.viz-array-view')?.getBoundingClientRect().height || 0
+    const height = Math.max(1, container.clientHeight - headerHeight - legendHeight - arrayHeight)
+    const animationDuration = reducedMotion ? 0 : 360
 
     // 设置 SVG 尺寸
     svg.attr('width', width).attr('height', height)
 
-    // 计算居中偏移
-    const nodesWidth = nodes.length > 0 
-      ? Math.max(...nodes.map(n => n.x)) - Math.min(...nodes.map(n => n.x)) + NODE_RADIUS * 2
-      : 0
+    // 逻辑坐标先映射到容器比例，再按节点整体范围居中，避免窄屏裁切。
+    const scale = Math.min(width / 900, height / 300, 1.2)
     const minX = nodes.length > 0 ? Math.min(...nodes.map(n => n.x)) : 0
-    const offsetX = (width - nodesWidth) / 2 - minX + NODE_RADIUS
-    const offsetY = height / 2 - 150 + 30
+    const maxX = nodes.length > 0 ? Math.max(...nodes.map(n => n.x)) : minX
+    const contentWidth = (maxX - minX) * scale + NODE_RADIUS * 2
+    const offsetX = (width - contentWidth) / 2 - minX * scale + NODE_RADIUS
+    const offsetY = height / 2 - 150 * scale
 
     // 创建或更新主容器
     let g = svg.select<SVGGElement>('.main-group')
     if (g.empty()) {
       g = svg.append('g').attr('class', 'main-group')
     }
-    g.attr('transform', `translate(${offsetX}, ${offsetY})`)
+    g.attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`)
 
     // 创建箭头标记
     let defs = svg.select<SVGDefsElement>('defs')
@@ -118,6 +125,10 @@ export function Visualization({
         .attr('fill', '#ef4444')
     }
 
+    // 层级化组织数据边、指针和节点，避免快照切换时清空整幅画布。
+    const edgesLayer = g.selectAll<SVGGElement, null>('.layer-edges').data([null]).join('g').attr('class', 'layer-edges')
+    const nodesLayer = g.selectAll<SVGGElement, null>('.layer-nodes').data([null]).join('g').attr('class', 'layer-nodes')
+
     // 创建节点位置映射
     const nodePositions = new Map<string, { x: number; y: number }>()
     nodes.forEach(n => {
@@ -125,13 +136,13 @@ export function Visualization({
     })
 
     // 绘制边（箭头）
-    const edgeSelection = g.selectAll<SVGLineElement, VisualEdge>('.edge')
+    const edgeSelection = edgesLayer.selectAll<SVGLineElement, VisualEdge>('.edge')
       .data(edges, d => d.id)
 
     // 移除旧边
     edgeSelection.exit()
       .transition()
-      .duration(ANIMATION_DURATION / 2)
+      .duration(animationDuration / 2)
       .style('opacity', 0)
       .remove()
 
@@ -144,7 +155,7 @@ export function Visualization({
     // 更新所有边
     edgeSelection.merge(edgeEnter)
       .transition()
-      .duration(ANIMATION_DURATION)
+      .duration(animationDuration)
       .attr('x1', d => {
         const pos = nodePositions.get(d.sourceId)
         return pos ? pos.x + NODE_RADIUS : 0
@@ -177,13 +188,13 @@ export function Visualization({
 
 
     // 绘制节点组
-    const nodeSelection = g.selectAll<SVGGElement, VisualNode>('.node-group')
+    const nodeSelection = nodesLayer.selectAll<SVGGElement, VisualNode>('.node-group')
       .data(nodes, d => d.id)
 
     // 移除旧节点
     nodeSelection.exit()
       .transition()
-      .duration(ANIMATION_DURATION / 2)
+      .duration(animationDuration / 2)
       .style('opacity', 0)
       .remove()
 
@@ -221,14 +232,14 @@ export function Visualization({
     // 动画移动节点位置
     allNodes
       .transition()
-      .duration(ANIMATION_DURATION)
+      .duration(animationDuration)
       .attr('transform', d => `translate(${d.x}, ${d.y})`)
       .style('opacity', 1)
 
     // 更新节点圆形样式
     allNodes.select('.node-circle')
       .transition()
-      .duration(ANIMATION_DURATION)
+      .duration(animationDuration)
       .attr('fill', d => {
         if (d.highlight) {
           return HIGHLIGHT_BG_COLORS[d.highlight] || '#fff'
@@ -247,7 +258,7 @@ export function Visualization({
     allNodes.select('.node-value')
       .text(d => d.value)
       .transition()
-      .duration(ANIMATION_DURATION)
+      .duration(animationDuration)
       .attr('fill', d => {
         if (d.highlight) {
           return HIGHLIGHT_COLORS[d.highlight] || '#333'
@@ -259,10 +270,10 @@ export function Visualization({
     allNodes.select('.pointer-label')
       .text(d => d.highlight || '')
       .transition()
-      .duration(ANIMATION_DURATION)
+      .duration(animationDuration)
       .attr('fill', d => d.highlight ? HIGHLIGHT_COLORS[d.highlight!] : '#666')
 
-  }, [nodes, edges, currentStep])
+  }, [nodes, edges, currentStep, reducedMotion])
 
   // 指针颜色映射（用于图例）
   const pointerLegend = [
@@ -279,10 +290,11 @@ export function Visualization({
   const getOperationLabel = (type: string) => {
     switch (type) {
       case 'init': return '初始化'
-      case 'check': return '条件检查'
-      case 'pointer-change': return '指针变化'
-      case 'swap-complete': return '交换完成'
-      case 'move-pointer': return '移动指针'
+      case 'read': return '读取指针'
+      case 'compare': return '检查节点对'
+      case 'swap': return '交换指针'
+      case 'move': return '推进指针'
+      case 'done': return '完成'
       case 'return': return '返回结果'
       default: return ''
     }
@@ -294,13 +306,12 @@ export function Visualization({
       <div className="viz-header">
         <div className="viz-step-info">
           <span className="step-badge">步骤 {currentStep + 1} / {totalSteps}</span>
-          {operationType && (
-            <span className={`operation-badge ${operationType}`}>
-              {getOperationLabel(operationType)}
-            </span>
-          )}
+          <span className={`operation-badge ${operation}`}>
+            {getOperationLabel(operation)}
+          </span>
+          <span className="step-metrics">节点 {nodes.length} · 已交换 {nodes.filter(node => node.highlight === null).length}</span>
         </div>
-        <div className="step-description">{description}</div>
+        <div className="step-description">{narration || description}</div>
       </div>
 
       {/* 图例 */}
